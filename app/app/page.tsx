@@ -16,6 +16,8 @@ interface DashboardEntry {
   op_income: Array<{
     cash_amount: number | null;
     gpay_amount: number | null;
+    cash_quantity: number | null;
+    gp_quantity: number | null;
   }> | null;
   lab_income: Array<{
     cash_amount: number | null;
@@ -40,12 +42,11 @@ interface DashboardEntry {
 }
 
 export default function DashboardPage() {
-
   const router = useRouter();
   const [stats, setStats] = useState([
     { title: 'Total Revenue', value: '0.00', icon: DollarSign, description: 'Total income this month' },
     { title: 'Total Expenses', value: '0.00', icon: TrendingUp, description: 'Total expenses this month' },
-    { title: 'Patients', value: '0', icon: Users, description: 'Patients seen this month' },
+    { title: 'Patients', value: '0', icon: Users, description: 'Patients seen this month (OP)' },
     { title: 'Entries', value: '0', icon: FileText, description: 'Total entries this month' },
   ]);
   const [loading, setLoading] = useState(true);
@@ -75,7 +76,7 @@ export default function DashboardPage() {
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
       const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
-      // Fetch entries with relations – TypeScript now knows the shape
+      // Fetch entries with relations – include cash_quantity & gp_quantity
       const { data: entries, error } = await supabase
         .from('daily_entries')
         .select(`
@@ -83,7 +84,7 @@ export default function DashboardPage() {
           entry_date,
           opening_balance_cash,
           opening_balance_bank,
-          op_income:daily_op_income(cash_amount, gpay_amount),
+          op_income:daily_op_income(cash_amount, gpay_amount, cash_quantity, gp_quantity),
           lab_income:daily_lab_income(cash_amount, gpay_amount),
           pharmacy_income:daily_pharmacy_income(cash_amount, gpay_amount),
           obs_income:daily_obs_income(cash_amount, gpay_amount),
@@ -94,7 +95,7 @@ export default function DashboardPage() {
         .gte('entry_date', firstDay)
         .lte('entry_date', lastDay)
         .order('entry_date', { ascending: true });
-  
+
       if (error) {
         console.error('Supabase error:', error);
         throw error;
@@ -104,6 +105,7 @@ export default function DashboardPage() {
       let totalRevenue = 0;
       let totalExpenses = 0;
       let totalEntries = entries?.length || 0;
+      let totalPatients = 0;
 
       entries?.forEach((entry: DashboardEntry) => {
         // Income
@@ -115,13 +117,17 @@ export default function DashboardPage() {
 
         totalRevenue += op + lab + pharm + obs + home;
 
+        // Patients = sum of cash_quantity + gp_quantity from OP income
+        const patientsFromThisEntry = entry.op_income?.reduce((sum, l) => {
+          return sum + (l.cash_quantity || 0) + (l.gp_quantity || 0);
+        }, 0) ?? 0;
+
+        totalPatients += patientsFromThisEntry;
+
         // Expenses
         const exp = entry.expense_lines?.reduce((sum, l) => sum + (l.cash_amount || 0) + (l.bank_amount || 0), 0) ?? 0;
         totalExpenses += exp;
       });
-
-      // Patients – placeholder (replace with real query when you have the table)
-      const patientsThisMonth = 0;
 
       // Update stats with formatted values
       setStats([
@@ -139,9 +145,9 @@ export default function DashboardPage() {
         },
         {
           title: 'Patients',
-          value: patientsThisMonth.toString(),
+          value: totalPatients.toLocaleString('en-US'), // adds thousands separator if large
           icon: Users,
-          description: 'Patients seen this month',
+          description: 'Patients seen this month (OP)',
         },
         {
           title: 'Entries',
@@ -170,7 +176,7 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
-          Overview of your clinics financial data ....
+          Overview of your clinics financial data
         </p>
       </div>
 
@@ -217,7 +223,7 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="flex h-32 items-center justify-center text-muted-foreground">
-            No recent activity ..
+            No recent activity
           </div>
         </CardContent>
       </Card>
