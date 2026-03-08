@@ -157,7 +157,7 @@ export default function LoginPage() {
                 </Button>
               </form>
             </TabsContent>
-            <TabsContent value="signup">
+            {/* <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4">
                 {error && (
                   <Alert variant="destructive">
@@ -205,7 +205,7 @@ export default function LoginPage() {
                   {loading ? 'Creating account...' : 'Create Account'}
                 </Button>
               </form>
-            </TabsContent>
+            </TabsContent> */}
           </Tabs>
         </CardContent>
       </Card>
